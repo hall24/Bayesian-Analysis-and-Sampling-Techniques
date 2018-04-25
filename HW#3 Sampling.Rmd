@@ -1,0 +1,109 @@
+---
+title: "HW#3 Sampling"
+author: "Elijah Hall"
+date: "February 02, 2018"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Homework 3 Sampling
+
+### 1
+Write a function to sample from the Weibull distribution using the inverse transformation method from the slides. Compare a histogram of 1000 draws from your function to a histogram of 1000 draws from rweibull().
+
+```{r }
+
+
+myweibull = function(n,alpha=1,beta=1){
+  n=1000
+  alpha=1
+  beta=1
+  new_x <- vector("numeric", length = n)
+  new_x <- sapply(seq(n),function(x){
+    new_x[x] = beta*((-log(1-runif(1)))^(1/alpha))
+  })
+  return(new_x)
+ }
+
+hist(myweibull(1000),nclass = 50)
+hist(rweibull(1000,1),nclass = 50)
+
+```
+ 
+### 2
+Write a function to sample from the truncated standard Normal distribution bounded by -1 and 1 using the rejection sampling method.
+ 
+```{r }
+
+library(truncnorm)
+mytruncnorm = function(n,a,b,mean,sd){
+  c = dtruncnorm(0,a = a, b = b, mean = mean, sd = sd)
+  g = runif(n,-1,1) # candidate draws
+  u = runif(n,0,1) # random numbers "u" are probabilities
+  acceptYN = (u <= (dtruncnorm(g,a,b,mean,sd)/c))
+  return(g[acceptYN])
+}
+
+hist(rtruncnorm(10000,a = -1,b = 1,mean = 0,sd = 1))
+hist(mytruncnorm(10000,a = -1,b = 1,mean = 0,sd = 1))
+plot(density(rtruncnorm(10000,a = -1,b = 1,mean = 0,sd = 1)))
+plot(density(mytruncnorm(10000,a = -1,b = 1,mean = 0,sd = 1)))
+
+
+```
+
+### 3
+
+#### a 
+  Write a function to generate random samples from an Exponential distribution using the Metropolis method with a uniform proposal distribution. Generate 1000 draws from the Exponential(rate=10) distribution, and plot the histogram of the last 500. Does the distribution look like hist(rexp(500,rate=10))? If not, alter the range of your proposal distribution until it does. What was a good proposal distribution? Using this same proposal distribution, generate 1000 draws from the Exponential(rate=.01) distribution and plot a histogram of the last 500. Does your histogram look like hist(rexp(500,rate=.01))? If not, find a better proposal distribution.
+ [Note: I'm having you discard the first 500 of the samples you generated. This is so that your samples are not influenced by the arbitrary starting point you chose. The early parts of a MCMC chain that we discard are called a "burn-in".]
+ 
+```{r }
+myMCMC = function(n,ball,rate,start = 1){
+draws <- rexp(n, rate=rate)
+draws[1] <- start
+for (i in 2:n){
+  proposed <- runif(1,draws[i-1]-ball,draws[i-1]+ball)
+   if (runif(1) < exp(dexp(proposed,rate,log=TRUE)-dexp(draws[i-1],rate,log=TRUE))) {
+     draws[i] <- proposed
+     } else {draws[i] <- draws[i-1]}
+    }
+  return(draws)
+}
+par(mfrow=c(2,2))
+hist(myMCMC(n=1000,ball=0.15,rate = 10)[501:1000],nclass = 50, main = "myMCMC rate=10")
+hist(rexp(500,rate=10),nclass = 50, main = "rexp rate=10")
+hist(myMCMC(n=1000,ball=85,rate = .01)[501:1000],nclass = 50, main = "myMCMC rate=.01")
+hist(rexp(500,rate=.01),nclass = 50,main = "rexp rate=.01")
+
+```
+ 
+#### b
+
+  Take 50 samples of 500 draws (after burn-in) from the Exponential(.01) distribution. Plot a histogram of their medians and add the true median to the plot. Plot a histogram of their .99 quantiles and add the true .99 quantile to the plot.  
+
+```{r }
+medians <- vector("numeric", length=50)
+quantile.99 <- vector("numeric", length=50)
+
+for (i in (1:50)){
+  medians[i] <-  median(myMCMC(n=1000,ball=0.15,rate = 10)[501:1000])
+  quantile.99[i] <-quantile(myMCMC(n=1000,ball=0.15,rate = 10)[501:1000],.99)
+}
+par(mfrow= c(1,1))
+hist(medians)
+abline(v=qexp(.5,0.01), col="red",lwd=2)
+hist(quantile.99)
+abline(v=qexp(.99,0.01), col="blue",lwd=2)
+
+```
+
+## 3 Conclusion
+
+  How do you explain any difference between these two histograms? (Use qexp() function to find true values)
+
+  Since the exponential function has a tail stretching to infinity the .99 quantile is pulled far to the right and varies dramatically from distributions with smaller sample sizes even ones with n=1000. Where in contrast the medians are grouped much closer and strongly influence eachother. 
+
